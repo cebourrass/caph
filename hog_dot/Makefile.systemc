@@ -1,0 +1,30 @@
+SC_GEN_HEADERS = d_act.h dp_act.h f_act.h fp_act.h d1p_act.h f1p_act.h dkp_act.h fkp_act.h d1li_act.h d1lr_act.h conv1u13a_act.h conv1s13a_act.h conv1u14a_act.h conv1s14a_act.h conv1u15a_act.h conv1u15a_act.h conv2u33a_act.h conv2s33a_act.h conv_act.h sqrt_act.h opp_act.h abs_act.h sum2u88_act.h psumb_act.h fsum_act.h norm_act.h norm32_act.h e1block_act.h sum32_act.h resizing_act.h cordic_act.h shifting_act.h hog_globals.h
+SC_GEN_SOURCES = conv_act.cpp sum2u88_act.cpp psumb_act.cpp fsum_act.cpp norm_act.cpp norm32_act.cpp e1block_act.cpp sum32_act.cpp resizing_act.cpp cordic_act.cpp shifting_act.cpp hog_globals.cpp hog_net.cpp
+INPUT_STREAMS = sample.txt
+OUTPUT_STREAMS = val.txt
+conv_act.o: conv_act.cpp
+sum2u88_act.o: sum2u88_act.cpp
+psumb_act.o: psumb_act.cpp
+fsum_act.o: fsum_act.cpp
+norm_act.o: norm_act.cpp
+norm32_act.o: norm32_act.cpp
+e1block_act.o: e1block_act.cpp
+sum32_act.o: sum32_act.cpp
+resizing_act.o: resizing_act.cpp
+cordic_act.o: cordic_act.cpp
+shifting_act.o: shifting_act.cpp
+hog_globals.o: hog_globals.cpp
+hog_net.o: hog_net.cpp
+conv_act.cpp: systemc.code
+sum2u88_act.cpp: systemc.code
+psumb_act.cpp: systemc.code
+fsum_act.cpp: systemc.code
+norm_act.cpp: systemc.code
+norm32_act.cpp: systemc.code
+e1block_act.cpp: systemc.code
+sum32_act.cpp: systemc.code
+resizing_act.cpp: systemc.code
+cordic_act.cpp: systemc.code
+shifting_act.cpp: systemc.code
+hog_globals.cpp: systemc.code
+hog_net.cpp: systemc.code

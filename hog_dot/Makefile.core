@@ -1,0 +1,140 @@
+# PLATFORM DEPENDANT VALUES
+TARGET_ARCH	= linux64
+
+CAPHROOT=/home/cedric/Documents/caph/v2/dist/caph-unix/
+CAPH=$(CAPHROOT)bin/caph
+CAPHLIB=$(CAPHROOT)lib/caph/
+TXT2BIN=$(CAPHROOT)bin/txt2bin
+BIN2TXT=$(CAPHROOT)bin/bin2txt
+PGM2BIN=$(CAPHROOT)bin/pgm2bin
+BIN2PGM=$(CAPHROOT)bin/bin2pgm
+PGM2TXT=$(CAPHROOT)bin/pgm2txt
+TXT2PGM=$(CAPHROOT)bin/txt2pgm
+
+GRAPHVIZ    = dot -Tpng
+GTKWAVE     = gtkwave
+CC          = gcc
+OCAMLC      = ocamlc
+GHDL 	    = ghdl
+DISPIMG     = display
+
+SC_DIR		= /opt/systemc-2.3.0
+SC_CXX      = g++
+SC_LD	 	= g++
+
+# SYSTEMC SPECIFIC MACROS
+CXXFLAGS    = -I. -I$(CAPHROOT)lib/systemc -I$(SC_DIR)/include -Wno-deprecated 
+LDFLAGS	    =  -L$(CAPHROOT)lib/systemc -L$(SC_DIR)/lib-$(TARGET_ARCH) 
+
+GEN_TXT_FILES = $(OUTPUT_STREAMS)
+GEN_BIN_FILES = $(INPUT_STREAMS:.txt=.bin) $(OUTPUT_STREAMS:.txt=.bin)
+GEN_PGM_FILES = $(OUTPUT_STREAMS:.txt=.pgm) 
+
+-include Makefile.local
+
+# VHDL
+
+#VHDL_FlOAT_SUPPORT=NO
+#VHDL_FP_LIB =
+#GHDL_ELAB_OPTS 	=
+VHDL_FlOAT_SUPPORT=YES
+#VHDL_FP_LIB = /Users/jserot/Dev/vhdl/fp-altera
+GHDL_ELAB_OPTS 	= -P$(CAPHROOT)/lib/vhdl 
+#GHDL_ELAB_OPTS 	= -P../../../lib/vhdl -P$(VHDL_FP_LIB)
+
+# DOT
+
+dot: $(MAIN).cph
+	$(CAPH) -dot $(SIM_OPTS) $(MAIN).cph
+	$(GRAPHVIZ) $(MAIN).dot > $(MAIN).png
+
+# SIMULATION
+
+SIM_EXTRA_CMOS   = $(SIM_EXTRA_SOURCES:.ml=.cmo)
+SIM_EXTRA_CMIS   = $(SIM_EXTRA_SOURCES:.ml=.cmi)
+
+sim.makefile:
+	$(CAPH) -make -sim $(SIM_OPTS) $(MAIN).cph
+
+sim: $(MAIN).cph $(INPUT_STREAMS) $(SIM_EXTRA_CMOS)
+	$(CAPH) -sim $(SIM_OPTS) $(MAIN).cph
+
+# SYSTEMC
+
+SC_GEN_OBJS    = $(SC_GEN_SOURCES:.cpp=.o)
+SC_EXTRA_OBJS   = $(SC_EXTRA_SOURCES:.cpp=.o)
+SC_EXE	   = sc.exe
+
+systemc.makefile:
+	$(CAPH) -make -systemc $(SC_OPTS) $(MAIN).cph
+
+systemc.code: $(MAIN).cph
+	$(CAPH) -systemc $(SC_OPTS) $(MAIN).cph
+
+$(SC_EXE): $(SC_GEN_OBJS) $(SC_EXTRA_OBJS)
+	$(SC_LD) $(LDFLAGS) $(SC_GEN_OBJS) $(SC_EXTRA_OBJS) -o $(SC_EXE) -lsystemc  2>&1 | c++filt
+
+systemc.exe: $(SC_EXE)
+
+systemc.run: $(SC_EXE) $(INPUT_STREAMS)
+	./$(SC_EXE)
+
+systemc: systemc.run
+
+# VHDL
+
+vhdl.makefile:
+	$(CAPH) -make -vhdl $(VHDL_OPTS) $(MAIN).cph
+
+vhdl.code: $(MAIN).cph
+	$(CAPH) -vhdl $(VHDL_OPTS) $(MAIN).cph
+
+vhdl.run: vhdl.elab $(INPUT_STREAMS:.txt=.bin)
+	$(GHDL) -r $(GHDL_ELAB_OPTS) $(MAIN)_tb $(GHDL_RUN_OPTS)
+
+vhdl: vhdl.run
+vhdl.viewtrace: $(MAIN)_tb.vcd
+	$(GTKWAVE) $(MAIN)_tb.vcd -a $(MAIN)_tb.sav
+
+# GENERIC RULES
+
+.SUFFIXES: .cpp .o .txt .pgm .bin
+
+.cpp.o:
+	$(SC_CXX) $(CXXFLAGS) -c -o $@ $<
+
+# Default rules for converting pgm to/from bin and txt files
+# To be overriden if necessary in Makefile.local
+
+# .pgm.txt:
+# 	$(PGM2TXT) -abbrev $< $@
+
+# .pgm.bin: 
+# 	$(PGM2BIN) 10 $< $@  # Default is 8 bit pixel depth
+
+# .txt.pgm:
+# 	$(TXT2PGM) -abbrev 255 $< $@ # Default is 8 bit pixel depth
+
+# .bin.pgm:
+# 	$(BIN2PGM) 10 $< $@ # Default is 8 bit pixel depth
+
+clean:
+	-rm -f *.o *~ *_old $(SC_EXE)
+	-rm -rf *.dSYM
+	-rm -f a.out
+	-rm -f core
+	-rm -f caph.output
+	-rm -f *.vcd
+	-rm -f *.dot
+	-rm -f *.bin
+	-rm -f doc/*.log doc/*.dvi doc/*.rel doc/*.aux
+	-rm -f work-obj93.cf
+	-rm -f $(SC_GEN_SOURCES) $(SC_GEN_HEADERS) $(SC_EXTRA_FILES)
+	-rm -f $(VHDL_GEN_SOURCES) $(VHDL_EXTRA_FILES)
+	-rm -f $(GEN_TXT_FILES) $(GEN_BIN_FILES) $(GEN_PGM_FILES)
+	-rm -f $(SIM_EXTRA_CMOS) $(SIM_EXTRA_CMI)
+	-rm -f doc/*.pdf
+	-rm -f *.dat
+
+clobber: clean
+	-rm -f Makefile.{sim,systemc,vhdl}

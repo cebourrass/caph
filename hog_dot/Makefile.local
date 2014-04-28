@@ -1,0 +1,45 @@
+# APPLICATION SPECIFIC DEFINITIONS
+
+MAIN = hog
+
+#SIM_OPTS = -I $(CAPHLIB)  -abbrev_dc_ctors -chan_cap 1300 -dump_typed -dump_tenv 
+SIM_OPTS = -I $(CAPHLIB) -abbrev_dc_ctors -chan_cap 1300 
+SC_OPTS =  -I $(CAPHLIB)  -sc_default_fifo_capacity 1300 -sc_stop_time 15000000 -sc_abbrev_dc_ctors -sc_dump_fifo_stats -sc_use_templates 
+VHDL_OPTS = -I $(CAPHLIB) -vhdl_annot_file hog_fifo_stats.dat -vhdl_default_fifo_model Magic_FIFO -vhdl_big_fifo_model Magic_FIFO
+#VHDL_OPTS = -I $(CAPHLIB) -vhdl_annot_file hog_fifo_stats.dat
+GHDL_RUN_OPTS = --stop-time=1600000ns  # --vcd=inv_tb.vcd 
+
+GEN_TXT_FILES += sample.txt 
+
+
+sample.txt: sample.pgm
+	$(PGM2TXT) -abbrev $< $@
+
+sample.bin: sample.pgm
+	$(PGM2BIN) 16 $< > $@
+
+show: 
+		$(TXT2PGM) -abbrev 255 val.txt val.pgm; \
+#	if [ -e "r0.txt" ]; then \
+#		$(TXT2PGM) -abbrev 255 r0.txt r0.pgm; \
+#		$(TXT2PGM) -abbrev 255 r1.txt r1.pgm; \
+#		$(TXT2PGM) -abbrev 255 r2.txt r2.pgm; \
+#		$(TXT2PGM) -abbrev 255 r3.txt r3.pgm; \
+#		$(TXT2PGM) -abbrev 255 r4.txt r4.pgm; \
+#		$(TXT2PGM) -abbrev 255 r5.txt r5.pgm; \
+#		$(TXT2PGM) -abbrev 255 r6.txt r6.pgm; \
+#		$(TXT2PGM) -abbrev 255 r7.txt r7.pgm;\
+#	fi
+#	eog r1.pgm &
+
+show.vhdl:
+	if [ -e "r1.bin" ]; then \
+		$(BIN2PGM) -signed  16 r1.bin r1_vhdl.pgm; \
+		$(BIN2PGM) -signed  16 r2.bin r2_vhdl.pgm; \
+		$(BIN2PGM) -signed  16 r3.bin r3_vhdl.pgm; \
+		$(BIN2PGM) -signed  16 r4.bin r4_vhdl.pgm; \
+		$(BIN2PGM) -signed  16 r5.bin r5_vhdl.pgm; \
+		$(BIN2PGM) -signed  16 r6.bin r6_vhdl.pgm; \
+		$(BIN2PGM) -signed  16 r7.bin r7_vhdl.pgm; \
+	fi
+	eog r1.pgm &

@@ -1,0 +1,269 @@
+--******************************************************
+--******************************************************
+
+type uint = signed<32>;
+
+const kdx = [(-1),0,1,(-1),0,1,(-1),0,1]; -- derivative kernel dx
+const kdy = ([1,1,1,0,0,0,(-1),(-1),(-1)]:uint array[9]); -- derivatine kernel dy
+const gaussian = ([1,2,1,2,4,2,1,2,1]:uint array[9]);    -- gaussian kernel for noise attenuation
+
+
+--******************************************************
+--   Actors 
+--******************************************************
+
+actor d ()       -- pixel delay
+  in (a:uint dc)
+  out (c:uint dc)
+var s : {S0,S1,S2} = S0
+var z : uint
+rules
+  ( s,  a, z) -> ( s,  c, z)
+| (S0, '<, _) -> (S1, '<, _)
+| (S1, '>, _) -> (S0, '>, _)
+| (S1, '<, _) -> (S2, '<, 0)
+| (S2, 'p, z) -> (S2, 'z, p)
+| (S2, '>, _) -> (S1, '>, _)
+;
+--******************************************************
+
+actor dl ()     -- line delay
+  in (a:uint dc)
+  out (c:uint dc)
+var s : {S0,S1,S2,S3,S4}=S0
+var z :uint array[800] = [ 0 : 800  ] -- to be adjusted according to effective line size
+var i : unsigned<12>                  -- 2^(size(i)) > size z
+rules (s,a,z,i) -> (s,c,z,i)
+| (S0, '<, _, _) -> (S1, '<, _, _)
+| (S1, '>, _, _) -> (S0, '>, _, _)
+| (S1, '<, _, _) -> (S2, '<, _, 0)
+| (S2, '>, _, _) -> (S3, '>, _, _)
+| (S2, 'p, z, i) -> (S2, '0, z[i<-p], i+1)
+| (S3, '>, _, _) -> (S0, '>, _, _)
+| (S3, '<, _, _) -> (S4, '<, _, 0)
+| (S4, 'p, z, i) -> (S4, 'z[i], z[i<-p], i+1)
+| (S4, '>, _, _) -> (S3, '>, _, _)
+;
+--******************************************************
+
+actor maddn (k:uint array[9])
+  in (x0:uint dc, x1:uint dc, x2:uint dc,
+      x3:uint dc, x4:uint dc, x5:uint dc,
+      x6:uint dc, x7:uint dc, x8:uint dc)
+  out (s:uint dc)
+rules
+  ( x0,  x1,  x2,  x3,  x4,  x5,  x6,  x7,  x8) -> s
+| ( '<, '<,   '<,  '<,  '<,  '<,  '<,  '<,  '<) -> '<
+| ('x0, 'x1, 'x2, 'x3, 'x4, 'x5, 'x6, 'x7, 'x8) -> '((k[0]*x0+k[1]*x1+k[2]*x2+k[3]*x3+k[4]*x4+k[5]*x5+k[6]*x6+k[7]*x7+k[8]*x8))
+| ( '>, '>,   '>,  '>,  '>,  '>,  '>,  '>,  '>) -> '>
+;
+--******************************************************
+
+actor abs ()
+  in (i:uint dc)
+  out(o:uint dc)
+rules i -> o
+| '< -> '<
+| '> -> '>
+| 'p -> if p <0 then '(0-p) else 'p
+;
+--******************************************************
+
+actor norm (k:unsigned<16>)
+  in ( i:uint dc)
+  out( o:uint dc)
+rules i -> o
+| '< -> '<
+| '> -> '>
+| 'p -> '(p>>k)
+;
+--******************************************************
+
+actor thr ()
+  in ( i:uint dc)
+  out( o:uint dc)
+rules i -> o
+| '< -> '<
+| '> -> '>
+| 'p -> if p<0 then '(0) else 'p
+;
+--******************************************************
+actor square()
+ in (i :uint dc)
+ out(o :uint dc)
+rules(i) -> o
+| '< -> '<
+| 'p -> '(p*p)
+| '> -> '>
+;
+--******************************************************
+
+actor mult()
+ in (i1 :uint dc,i2:uint dc)
+ out(o :uint dc)
+rules(i1,i2) -> o
+| ('<,'<) -> '<
+| ('p,'q) -> '(p*q)
+| ('>,'>) -> '>
+;
+--******************************************************
+
+function calc_r(a,b,c,k) = (a*b-c)*(a*b-c) - (((a+b)*(a+b))>>k) :uint*uint*uint*unsigned<16>->uint;
+
+actor cornerness(k:unsigned<16>)
+ in  (a :uint dc, b: uint dc, c: uint dc)
+ out (r:uint dc) 
+rules (a,b,c) -> (r)
+| ('<, '<, '<) -> ('<)
+| ('>, '>, '>) -> ('>)
+| ('a, 'b, 'c) -> ('calc_r(a,b,c,k));
+--******************************************************
+
+actor histsort (sz:unsigned<16>) 
+  in (a:uint dc)
+  out (c:unsigned<16> dc)
+var s : {S0,S1,S2,S3,S4,S5,S6}=S0
+var h : unsigned<16> array[1024] = [ 0 : 1024 ]  -- 
+var i : unsigned<16>
+var acc: unsigned<16>
+rules
+  (s,   a, acc, h,  i) -> ( s,   c,  acc,          h,   i)
+| (S0,  _, _, _,  _) -> (S1,     _,  0,       _,   0)
+| (S1,  _, _, _, 1024) -> (S2,     _,  _,       _,   _)
+| (S1,  _, _, h,  i) -> (S1,     _,  _, h[i<-0], i+1)
+| (S2, '<, _, _,  _) -> (S3,     _,  _,       _,   _)
+| (S3, '<, _, _,  _) -> (S4,     _,  _,       _,   _)
+| (S3, '>, acc, _,  _) -> (S5,   _,  0,          _,   1023  )
+| (S4, 'p, _, h,  _) -> (S4,     _, _, h[((p:unsigned<16>)>>6)<-h[((p:unsigned<16>)>>6)]+1], _   )
+| (S4, '>, _, _,  _) -> (S3,     _, _, _,  _)
+| (S5,  _,   _, _, 0)  -> (S2 , '0, _, _, _)
+| (S5,  _, acc, h, i)  -> (if acc<sz then S5 else S6, _, acc+h[i], h[i<-0],i-1)
+| (S6,  _,   _, _, i)  -> (S2, '((i+1)<<6),_,_,_) 
+;
+--******************************************************
+
+-- Version asynchrone
+actor dythr ()
+  in ( i:uint dc, thr: unsigned<16> dc)
+  out( o:uint dc)
+var ithr:unsigned<16> = 0
+rules (i, thr, ithr) -> (o, ithr)
+| ('<, _, _) -> ('<, 0)
+| ('>, _, _) -> ('>, _)
+| (_ , 'q, _) -> (_ , q)
+| ('p, _, ithr) -> (if (p:unsigned<16>)<ithr then '(0) else 'p, _)
+;
+--******************************************************
+
+actor local_filter() 
+  in (x0:uint dc, x1:uint dc, x2:uint dc,
+      x3:uint dc, x4:uint dc, x5:uint dc,
+      x6:uint dc, x7:uint dc, x8:uint dc,
+      x9:uint dc, x10:uint dc, x11:uint dc,
+      x12:uint dc, x13:uint dc, x14:uint dc,
+      x15:uint dc, x16:uint dc, x17:uint dc,
+      x18:uint dc, x19:uint dc, x20:uint dc,
+      x21:uint dc, x22:uint dc, x23:uint dc,
+      x24:uint dc)
+  out (s:uint dc)
+rules
+  (x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12,
+   x13, x14, x15, x16, x17, x18, x19, x20, x21, x22, x23, x24) -> s
+
+| ( '<, '<, '<,  '<,  '<,  '<,  '<,  '<, '<, '<, '<,
+  '<,  '<,  '<,  '<,  '<,  '<,  '<,  '<, '<, '<, '<, '<, '<, '<) -> '<
+|('x0, 'x1, 'x2, 'x3, 'x4, 'x5, 'x6, 'x7, 'x8, 'x9, 'x10, 'x11, 'x12,
+  'x13, 'x14, 'x15, 'x16, 'x17, 'x18, 'x19, 'x20, 'x21, 'x22, 'x23, 'x24) ->
+ if (x0>0 || x1>0 || x2>0 || x3>0 || x4>0 || x5>0 || x6>0 || x7>0 || x8>0 || x9>0 || x10>0 || x11>0 || x12>0 || 
+  x13>0 || x14>0 || x15>0 || x16>0 || x17>0 || x18>0 || x19>0 || x20>0 || x21>0 || x22>0 || x23>0 ) then '0 else 'x24
+| ( '>, '>, '>,  '>,  '>,  '>,  '>,  '>, '>, '>, '>,
+  '>,  '>,  '>,  '>,  '>,  '>,  '>,  '>, '>, '>, '>, '>, '>, '>) -> '>
+;
+
+
+--******************************************************
+--                   Network Mapping
+--******************************************************
+
+net vl x =     -- Voisinage Ligne
+ let z = d x in
+ x, z, d z
+;
+
+net msfl x =   -- Mise Sous Forme Locale
+  let xz = dl x in
+  let xzz = dl xz in
+  vl x, vl xz, vl xzz
+;
+
+
+net vl5 x =     -- Voisinage Ligne
+ let z = d x in
+ let zz = d z in
+ let zzz = d zz in
+ let zzzz = d zzz in
+ x, z, zz, zzz, zzzz
+;
+
+net msfl5 x =   -- Mise Sous Forme Locale
+  let xz = dl x in
+  let xzz = dl xz in
+  let xzzz = dl xzz in
+  let xzzzz = dl xzzz in
+  vl5 x, vl5 xz, vl5 xzz, vl5 xzzz, vl5 xzzzz
+;
+
+-- calcul de la derivee en x et y
+--******************************************************
+
+net ((y11,y12,y13),(y21,y22,y23),(y31,y32,y33)) = msfl x;
+net dx = norm[2](maddn [kdx] (y33,y32,y31,y23,y22,y21,y13,y12,y11));
+net dy = norm[2](maddn [kdy] (y33,y32,y31,y23,y22,y21,y13,y12,y11));
+
+-- calcul (dx)^2, (dy)^2, dxdy
+--******************************************************
+net dx2 = square(dx);
+net dy2 = square(dy);
+net dxdy = mult(dx,dy);
+
+--******************************************************
+-- Gaussian filtering
+--******************************************************
+-- image (dx)^2
+--******************************************************
+net ((u11,u12,u13),(u21,u22,u23),(u31,u32,u33)) = msfl dx2;
+net a = norm[4](maddn [gaussian] (u33,u32,u31,u23,u22,u21,u13,u12,u11));
+
+-- image (dy)^2
+--******************************************************
+net ((v11,v12,v13),(v21,v22,v23),(v31,v32,v33)) = msfl dy2;
+net b = norm[4](maddn [gaussian] (v33,v32,v31,v23,v22,v21,v13,v12,v11));
+ 
+-- image (dy)^2
+--******************************************************
+net ((w11,w12,w13),(w21,w22,w23),(w31,w32,w33)) = msfl dxdy;
+net c = norm[4](maddn [gaussian] (w33,w32,w31,w23,w22,w21,w13,w12,w11));
+  
+--******************************************************
+net xx = cornerness[4](a,b,c);        -- corner map
+net r = thr(norm[16](xx));            -- >>16 and del negative value
+
+-- Local Filter
+--******************************************************
+--net ((z11,z12,z13,z14,z15),(z21,z22,z23,z24,z25),(z31,z32,z33,z34,z35),(z41,z42,z43,z44,z45),(z51,z52,z53,z54,z55)) = msfl5 r;
+--net rr = local_filter((z55,z54,z53,z52,z51,z45,z44,z43,z42,z41,z35,z34,z33,z32,z31,z25,z24,z23,z22,z21,z15,z14,z13,z12,z11));
+
+
+net ddd = histsort [20] r;           -- hist and determine value to dythr
+net oout = (norm[8](dythr(r,ddd)));   -- filtre et recadrage sur 8 bits pour output 
+
+--******************************************************
+--        I/Os
+--******************************************************
+stream x:uint dc from "sample.pgm";
+stream oout: uint dc to "result.pgm";
+--stream ddd: unsigned<16> dc to "result.txt";
+
+
+
+

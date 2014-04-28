@@ -1,0 +1,114 @@
+# PLATFORM DEPENDANT VALUES
+include ../../../Makefile.config
+
+CAPH=../../../bin/$(_CAPH) #-dump_typed # -dump_ir
+CAPHLIB=../../../lib/caph
+TXT2BIN=../../../bin/$(_TXT2BIN)
+BIN2TXT=../../../bin/$(_BIN2TXT)
+PGM2BIN=../../../bin/$(_PGM2BIN)
+BIN2PGM=../../../bin/$(_BIN2PGM)
+
+test: sim systemc vhdl
+
+# SYSTEMC SPECIFIC MACROS
+CXXFLAGS    = -I. -I../../../lib/systemc -I$(SC_DIR)/include -Wno-deprecated
+LDFLAGS	    =  -L../../../lib/systemc -L$(SC_DIR)/lib-$(TARGET_ARCH) 
+
+
+SC_GEN_HEADERS = conv_act.h hog_globals.h
+SC_GEN_SOURCES = conv_act.cpp hog_globals.cpp hog_net.cpp
+
+
+SC_GEN_OBJS    	= $(SC_GEN_SOURCES:.cpp=.o)
+SC_EXE	   		= sc.exe
+SC_OPTS			= -sc_default_fifo_capacity 1300 -sc_dump_fifo_stats 
+
+# VHDL SPECIFIC MACROS
+GHDLOPTS += -P../../../lib/vhdl
+
+VHDL_GEN_SOURCES = hog_globals.vhd hog_net.vhd hog_tb.vhd
+CAPH_OPTS= -warn_channels -dump_senv -dump_denv  -chan_cap 25600 -dump_channel_stats
+
+# DOT and SIMULATION
+
+dot: hog.cph
+	$(CAPH) -fmt dot -I $(CAPHLIB) -arg1 jess512.pgm hog.cph
+	$(GRAPHVIZ) hog.dot
+
+sim: hog.cph
+	$(CAPH) -run -I $(CAPHLIB) $(CAPH_OPTS)  -arg1 sample.pgm hog.cph
+# SYSTEMC
+systemc.code: hog.cph
+	$(CAPH) -fmt systemc -I $(CAPHLIB) -sc_stop_time 3000000 -sc_dump_fifo_stats -arg1 sample.pgm $(SC_OPTS) -make hog.cph
+
+
+systemc.exe: $(SC_EXE)
+
+$(SC_EXE): $(SC_GEN_OBJS)
+	$(SC_LD) $(LDFLAGS) $(SC_GEN_OBJS) -o $(SC_EXE) -lsystemc  2>&1 | c++filt
+
+systemc.run: $(SC_EXE)
+	./$(SC_EXE)
+
+systemc: systemc.run
+
+# VHDL
+
+vhdl.code: hog.cph
+	$(CAPH) -fmt vhdl -I $(CAPHLIB) -arg1 sample.pgm -vhdl_annot_file hog_fifo_stats.dat hog.cph
+
+vhdl.elab: #vhdl.code
+	$(GHDL) -a $(GHDLOPTS) hog_globals.vhd
+	$(GHDL) -a $(GHDLOPTS) conv_act.vhd
+	$(GHDL) -a $(GHDLOPTS) hog_net.vhd
+	$(GHDL) -a $(GHDLOPTS) hog_tb.vhd
+	$(GHDL) -e $(GHDLOPTS) hog_tb
+
+vhdl.run: sample.bin vhdl.elab
+	$(GHDL) -r $(GHDLOPTS) hog_tb --stop-time=100ns --vcd=hog_tb.vcd 
+
+vhdl: vhdl.code vhdl.elab vhdl.run
+
+vhdl.view: hog_tb.vcd
+	$(GTKWAVE) hog_tb.vcd -a hog_tb.sav
+
+sample.bin: 
+	pgm2bin 18 sample.pgm > sample.bin
+
+# GENERIC RULES
+
+.SUFFIXES: .cpp .o .pgm .bin
+
+.cpp.o:
+	$(SC_CXX) $(CXXFLAGS) -c -o $@ $<
+
+.pgm.bin:
+	$(PGM2BIN) 18 $< > $@
+
+clean :
+	-rm -f *.o *~ *_old $(SC_EXE)
+	-rm -f a.out
+	-rm -f core
+	-rm -f caph.output
+	-rm -f *.vcd
+	-rm -f *.dot
+	-rm -f *.bin
+	-rm -f doc/*.log doc/*.dvi doc/*.rel doc/*.aux
+	-rm -f work-obj93.cf
+
+clobber: clean
+	-rm -f $(SC_GEN_SOURCES) $(SC_GEN_HEADERS)
+	-rm -f $(VHDL_GEN_SOURCES)
+	-rm -f result.*
+	-rm -f *.vhd *.dat *.h
+	-rm -f doc/*.pdf
+	-rm -f hog_tb
+
+
+abs_act.o: abs_act.cpp
+muln_act.o: muln_act.cpp
+mag_act.o: mag_act.cpp
+compare_act.o: compare_act.cpp
+dup5_act.o: dup5_act.cpp
+serialize_act.o: serialize_act.cpp
+hog_net.o: hog_net.cpp

@@ -1,0 +1,16 @@
+component Magic_FIFO is generic(
+       depth    : integer  := 50;
+       size     : integer  := 10;
+       DEPT_TH  : integer  := 30);
+port(
+         full : out std_logic;
+         datain : in std_logic_vector (size-1 downto 0);
+         enw : in std_logic;
+         empty : out std_logic;
+         dataout : out std_logic_vector(size-1 downto 0);
+         enr : in std_logic;
+         clk : in std_logic;
+         rst: in std_logic
+         );
+end component;
+

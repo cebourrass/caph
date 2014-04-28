@@ -1,0 +1,414 @@
+--
+--  +----+----+----+
+--  | x8 | x7 | x6 |
+--  +----+----+----+
+--  | x5 | x4 | x3 |
+--  +----+----+----+
+--  | x2 | x1 | x0 | <--current pixel
+--  +----+----+----+
+
+actor conv (k:signed<16> array[9])
+  in (a:signed<16> dc,    -- input
+      z:signed<16>,       -- previous line  (fed back through an external link)
+     zz:signed<16>)       -- pre-previous line  (fed back through an external link)
+  out (c:signed<16> dc,   -- output
+      oz:signed<16>,      -- previous line  (fed back through an external link)
+     ozz:signed<16>)      -- previous line  (fed back through an external link)
+var s : {S0,S1,S2,S3,S4,S5,S6,S7,S8} = S0
+var x1 : signed<16>
+var x2 : signed<16>
+var x4 : signed<16>
+var x5 : signed<16>
+var x7 : signed<16>
+var x8 : signed<16>
+rules
+| (s:S0, a:'<)               -> (s:S1, c:'<)
+| (s:S1, a:'>)               -> (s:S0, c:'>)
+| (s:S1, a:'<)               -> (s:S2, c:'<)
+| (s:S2, a:'p)               -> (s:S2, c:'0S, oz:p)
+| (s:S2, a:'>)               -> (s:S3, c:'>)
+| (s:S3, a:'<)               -> (s:S4, c:'<)
+| (s:S4, a:'x0, z:x3 )       -> (s:S4, c:'0S, ozz:x3, oz:x0)
+| (s:S4, a:'>)               -> (s:S5, c:'>)
+| (s:S5, a:'>)               -> (s:S0, c:'>)
+| (s:S5, a:'<)               -> (s:S6, c:'<)
+| (s:S6, a:'x0, z:x3, zz:x6) -> (s:S7, c:'0S, x7:x6, x4:x3, x1:x0, ozz:x3, oz:x0)
+| (s:S7, a:'x0, z:x3, zz:x6) -> (s:S8, c:'0S, x8:x7, x5:x4, x2:x1, x7:x6, x4:x3, x1:x0, ozz:x3, oz:x0)
+| (s:S8, a:'x0, z:x3, zz:x6) -> (s:S8,
+                                 c:'((k[0]*x0+k[1]*x1+k[2]*x2+k[3]*x3+k[4]*x4+k[5]*x5+k[6]*x6+k[7]*x7+k[8]*x8)),
+                                 x8:x7, x5:x4, x2:x1, x7:x6, x4:x3, x1:x0,
+                                 ozz:x3, oz:x0)
+| (s:S8, a:'>)               -> (s:S5, c:'>)
+;
+--========================================================================================
+-- actor sqrt ()
+--  in (a:signed<16> dc)
+--  out(s:signed<16> dc)
+-- rules
+-- | a:'< -> s:'<
+-- | a:'> -> s:'>
+-- | a:'i -> s:'((i*181S)>>8)
+-- ;
+
+actor sqrt ()
+ in (a:signed<#s> dc)
+ out(s:signed<#s> dc)
+rules
+| a:'< -> s:'<
+| a:'> -> s:'>
+| a:'i -> s:'((i*181S)>>8)
+;
+--========================================================================================
+actor opp()
+ in (a:signed<#s> dc)
+ out(s:signed<#s> dc)
+rules
+| a:'< -> s:'<
+| a:'> -> s:'>
+| a:'i -> s:'(-i)
+;
+
+actor abs()
+ in(a:signed<#s> dc)
+ out(s:unsigned<#s> dc)
+rules
+| a:'< -> s:'<
+| a:'> -> s:'>
+| a:'i -> s: if i<0S then '(-i:unsigned<#s>) else '(i:unsigned<#s>) 
+;
+
+
+--========================================================================================
+
+actor sum2u88 (n:unsigned<4>)
+  in (a:unsigned<16> dc,
+     z1:unsigned<16>, z2:unsigned<16>, z3:unsigned<16>, z4:unsigned<16>,
+     z5:unsigned<16>, z6:unsigned<16>, z7:unsigned<16>)
+
+  out (c:unsigned<16> dc,   -- output
+    oz1:unsigned<16>,oz2:unsigned<16>,oz3:unsigned<16>,oz4:unsigned<16>,
+    oz5:unsigned<16>,oz6:unsigned<16>,oz7:unsigned<16>)
+
+var s : {S0,S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,S11,S12,S13,S14,S15,S16,S17,S18,S19,S20,S21,S22,S23,S24,S25} = S0
+
+var add0 : unsigned<16>
+var add1 : unsigned<16>
+var add2 : unsigned<16>
+var add3 : unsigned<16>
+
+var add4 : unsigned<16>
+var add5 : unsigned<16>
+
+var add6 : unsigned<16>
+var add7 : unsigned<16>
+var add8 : unsigned<16>
+var add9 : unsigned<16>
+var add10: unsigned<16>
+
+var cpt  : unsigned<3>
+
+rules
+| (s:S0, a:'<)                             -> (s:S1, c:'<)
+| (s:S1, a:'>)                             -> (s:S0, c:'>)
+| (s:S1, a:'<)                             -> (s:S2)
+| (s:S2, a:'p)                             -> (s:S2, oz1:p)
+| (s:S2, a:'>)                             -> (s:S3)
+| (s:S3, a:'<)                             -> (s:S4)
+| (s:S4, a:'x0, z1:x8 )                    -> (s:S4, oz2:x8, oz1:x0)
+| (s:S4, a:'>)                             -> (s:S5)
+| (s:S5, a:'<)                             -> (s:S6)
+| (s:S6, a:'x0, z1:x8, z2:x16 )            -> (s:S6, oz3:x16, oz2:x8, oz1:x0)
+| (s:S6, a:'>)                             -> (s:S7)
+| (s:S7, a:'<)                             -> (s:S8)
+| (s:S8, a:'x0, z1:x8, z2:x16, z3:x24 )    -> (s:S8, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+| (s:S8, a:'>)                             -> (s:S9)
+| (s:S9, a:'<)                                    -> (s:S10)
+| (s:S10, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32 )  -> (s:S10, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+| (s:S10, a:'>)                                   -> (s:S11)
+| (s:S11, a:'<)                                           -> (s:S12)
+| (s:S12, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40 )  -> (s:S12, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+| (s:S12, a:'>)                                           -> (s:S13)
+| (s:S13, a:'<)                                                   -> (s:S14)
+| (s:S14, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48 )  -> (s:S14,  oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+| (s:S14, a:'>)                                                   -> (s:S15)
+| (s:S15, a:'<)                        -> (s:S16, c:'<)
+
+| (s:S16, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S17, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S17, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S18, add4:add0+add1, add5:add2+add3, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S18, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S19,  add6:add4+add5,add4:add0+add1, add5:add2+add3, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S19, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S20, add7:add6, add6:add4+add5,add4:add0+add1, add5:add2+add3, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S20, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S21, add8:add7, add7: add6,  add6:add4+add5,add4:add0+add1, add5:add2+add3, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S21, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S22, add9:add8, add8:add7, add7: add6, add6:add4+add5,add4:add0+add1, add5:add2+add3, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S22, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S23, add10:add9, add9:add8, add8:add7, add7: add6,add6:add4+add5,add4:add0+add1, add5:add2+add3, add0:x56+x48,add1:x40+x32, add2:x24+x16, add3:x8+x0,oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S23, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S16, c:'(add10+add9+add8+add7+add6+add5+add4+add3+add2+add1+add0+x0+x8+x16+x24+x32+x40+x48+x56), oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+
+| (s:S16, a:'>)  -> (s:S24, c:'>, cpt:0)
+| (s:S24, a:'>)  -> (s:S0 , c:'>)
+| (s:S24, a:'<)  -> (s:S25)
+| (s:S25, a:'x0, z1:x8, z2:x16, z3:x24, z4:x32, z5:x40, z6:x48, z7:x56 )  -> (s:S25, oz7:x48, oz6:x40, oz5:x32, oz4:x24, oz3:x16, oz2:x8, oz1:x0)
+| (s:S25, a:'>, cpt:cpt) when cpt < 6  -> (s:S24, cpt:cpt+1)
+| (s:S25, a:'>, cpt:cpt)               -> (s:S15)
+;
+
+--=======================================================================
+
+
+actor psumb()
+  in (i:unsigned<16> dc,    -- input
+      z:unsigned<16>)       -- previous line  (fed back through an external link)
+  out (a:unsigned<16> dc,   -- output
+       b:unsigned<16> dc,   -- output
+       c:unsigned<16> dc,   -- output
+       d:unsigned<16> dc,   -- output
+       o:unsigned<18> dc,   -- output
+      oz:unsigned<16>)      -- previous line  (fed back through an external link)
+
+var s : {S0,S1,S2,S3,S4,S5} = S0
+var x1 : unsigned<16>
+var x2 : unsigned<16>
+var x3 : unsigned<16>
+
+rules
+| (s:S0, i:'<)                        -> (s:S1, a:'<, b:'<, c:'<, d:'<, o:'<)
+| (s:S1, i:'>)                        -> (s:S0, a:'>, b:'>, c:'>, d:'<, o:'>)
+| (s:S1, i:'<)                        -> (s:S2, a:'<, b:'<, c:'<, d:'<, o:'<)
+| (s:S2, i:'p)                        -> (s:S2, a:'0, b:'0, c:'0, d:'0, o:'0, oz:p)
+| (s:S2, i:'>)                        -> (s:S3, a:'>, b:'>, c:'>, d:'>, o:'>)
+| (s:S3, i:'<)                        -> (s:S4, a:'<, b:'<, c:'<, d:'<, o:'<)
+| (s:S3, i:'>)                        -> (s:S0, a:'>, b:'>, c:'>, d:'>, o:'>)
+| (s:S4, i:'x0, z:x2)                 -> (s:S5, a:'0, b:'0, c:'0, d:'0, o:'0, x3:x2, x1:x0, oz:x0)
+| (s:S5, i:'x0, z:x2)                 -> (s:S5, a:'x0, b:'x1, c:'x2, d:'x3,o:'((x0:unsigned<18>)+(x1:unsigned<18>)+(x2:unsigned<18>)+(x3:unsigned<18>)),x3:x2, x1:x0, oz:x0)
+| (s:S5, i:'>)               -> (s:S3, a:'>, b:'>, c:'>, d:'>, o:'>)
+;
+
+
+actor fsum()
+  in (x1:unsigned<18> dc, x2:unsigned<18> dc, x3:unsigned<18> dc,x4:unsigned<18> dc,
+      x5:unsigned<18> dc, x6:unsigned<18> dc, x7:unsigned<18> dc,x8:unsigned<18> dc)
+  out(s:unsigned<14> dc)
+rules
+  (x1,x2,x3,x4,x5,x6,x7,x8) -> s
+| ('<,'<,'<,'<,'<,'<,'<,'<) -> '<
+| ('a,'b,'c,'d,'e,'f,'g,'h) -> '((( (a:unsigned<22>)+(b:unsigned<22>)+(c:unsigned<22>)+(d:unsigned<22>)+(e:unsigned<22>)+(f:unsigned<22>)+(g:unsigned<22>)+(h:unsigned<22>)>>8):unsigned<14>))
+| ('>,'>,'>,'>,'>,'>,'>,'>) -> '>
+;
+
+actor norm()
+  in (i:signed<16> dc,n:signed<14> dc)
+  out(s:signed<8> dc)
+rules
+  (i,n)-> s
+|('<,'<)-> '<
+| ('i,'n)-> '((i/((n+1S):signed<16>)):signed<8>)
+| ('>,'>)-> '>
+;
+--================================================
+
+actor norm32()
+ in  ( i1:unsigned<16> dc,  i2:unsigned<16> dc,  i3:unsigned<16> dc,  i4:unsigned<16> dc,
+       i5:unsigned<16> dc,  i6:unsigned<16> dc,  i7:unsigned<16> dc,  i8:unsigned<16> dc,
+       i9:unsigned<16> dc, i10:unsigned<16> dc, i11:unsigned<16> dc, i12:unsigned<16> dc,
+      i13:unsigned<16> dc, i14:unsigned<16> dc, i15:unsigned<16> dc, i16:unsigned<16> dc,
+      i17:unsigned<16> dc, i18:unsigned<16> dc, i19:unsigned<16> dc, i20:unsigned<16> dc,
+      i21:unsigned<16> dc, i22:unsigned<16> dc, i23:unsigned<16> dc, i24:unsigned<16> dc,
+      i25:unsigned<16> dc, i26:unsigned<16> dc, i27:unsigned<16> dc, i28:unsigned<16> dc,
+      i29:unsigned<16> dc, i30:unsigned<16> dc, i31:unsigned<16> dc, i32:unsigned<16> dc, n:unsigned<14> dc)
+
+ out ( o1:signed<9> dc,  o2:signed<9> dc,  o3:signed<9> dc,  o4:signed<9> dc,
+       o5:signed<9> dc,  o6:signed<9> dc,  o7:signed<9> dc,  o8:signed<9> dc,
+       o9:signed<9> dc, o10:signed<9> dc, o11:signed<9> dc, o12:signed<9> dc,
+      o13:signed<9> dc, o14:signed<9> dc, o15:signed<9> dc, o16:signed<9> dc,
+      o17:signed<9> dc, o18:signed<9> dc, o19:signed<9> dc, o20:signed<9> dc,
+      o21:signed<9> dc, o22:signed<9> dc, o23:signed<9> dc, o24:signed<9> dc,
+      o25:signed<9> dc, o26:signed<9> dc, o27:signed<9> dc, o28:signed<9> dc,
+      o29:signed<9> dc, o30:signed<9> dc, o31:signed<9> dc, o32:signed<9> dc)
+rules
+ (i1, i2, i3, i4, i5, i6, i7, i8, i9 , i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22, i23, i24, i25, i26, i27, i28, i29, i30, i31, i32,n) -> (o1, o2, o3, o4, o5, o6, o7, o8, o9 , o10, o11, o12, o13, o14, o15, o16, o17, o18, o19, o20, o21, o22, o23, o24, o25, o26, o27, o28, o29, o30, o31, o32 )
+| ('<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<) -> ('<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<)
+| ('i1, 'i2, 'i3, 'i4, 'i5, 'i6, 'i7, 'i8, 'i9 , 'i10, 'i11, 'i12, 'i13, 'i14, 'i15, 'i16, 'i17, 'i18, 'i19, 'i20, 'i21, 'i22, 'i23, 'i24, 'i25, 'i26, 'i27, 'i28, 'i29, 'i30, 'i31, 'i32, 'n)-> (
+'((i1/((n+1):unsigned<16>)):signed<9>),
+'((i2/((n+1):unsigned<16>)):signed<9>),
+'((i3/((n+1):unsigned<16>)):signed<9>),
+'((i4/((n+1):unsigned<16>)):signed<9>),
+'((i5/((n+1):unsigned<16>)):signed<9>),
+'((i6/((n+1):unsigned<16>)):signed<9>),
+'((i7/((n+1):unsigned<16>)):signed<9>),
+'((i8/((n+1):unsigned<16>)):signed<9>),
+'((i9/((n+1):unsigned<16>)):signed<9>),
+'((i10/((n+1):unsigned<16>)):signed<9>),
+'((i11/((n+1):unsigned<16>)):signed<9>),
+'((i12/((n+1):unsigned<16>)):signed<9>),
+'((i13/((n+1):unsigned<16>)):signed<9>),
+'((i14/((n+1):unsigned<16>)):signed<9>),
+'((i15/((n+1):unsigned<16>)):signed<9>),
+'((i16/((n+1):unsigned<16>)):signed<9>),
+'((i17/((n+1):unsigned<16>)):signed<9>),
+'((i18/((n+1):unsigned<16>)):signed<9>),
+'((i19/((n+1):unsigned<16>)):signed<9>),
+'((i20/((n+1):unsigned<16>)):signed<9>),
+'((i21/((n+1):unsigned<16>)):signed<9>),
+'((i22/((n+1):unsigned<16>)):signed<9>),
+'((i23/((n+1):unsigned<16>)):signed<9>),
+'((i24/((n+1):unsigned<16>)):signed<9>),
+'((i25/((n+1):unsigned<16>)):signed<9>),
+'((i26/((n+1):unsigned<16>)):signed<9>),
+'((i27/((n+1):unsigned<16>)):signed<9>),
+'((i28/((n+1):unsigned<16>)):signed<9>),
+'((i29/((n+1):unsigned<16>)):signed<9>),
+'((i30/((n+1):unsigned<16>)):signed<9>),
+'((i31/((n+1):unsigned<16>)):signed<9>),
+'((i32/((n+1):unsigned<16>)):signed<9>))
+|('>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>)-> ('>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>)
+;
+
+--actor e1block(sv:signed<9> array[32])
+-- in  (  i0:signed<9> dc,  i1:signed<9> dc,  i2:signed<9> dc,  i3:signed<9> dc, 
+--        i4:signed<9> dc,  i5:signed<9> dc,  i6:signed<9> dc,  i7:signed<9> dc,
+--        i8:signed<9> dc,  i9:signed<9> dc, i10:signed<9> dc, i11:signed<9> dc,
+--       i12:signed<9> dc, i13:signed<9> dc, i14:signed<9> dc, i15:signed<9> dc,
+--       i16:signed<9> dc, i17:signed<9> dc, i18:signed<9> dc, i19:signed<9> dc,
+--       i20:signed<9> dc, i21:signed<9> dc, i22:signed<9> dc, i23:signed<9> dc,
+--       i24:signed<9> dc, i25:signed<9> dc, i26:signed<9> dc, i27:signed<9> dc,
+--       i28:signed<9> dc, i29:signed<9> dc, i30:signed<9> dc, i31:signed<9> dc)
+-- out (nxsv:unsigned<15> dc)
+--rules (i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22, i23, i24, i25, i26, i27, i28, i29, i30, i31)->(nxsv)
+--| ('<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<) -> '<
+--| ('i0, 'i1, 'i2, 'i3, 'i4, 'i5, 'i6, 'i7, 'i8, 'i9 , 'i10, 'i11, 'i12, 'i13, 'i14, 'i15, 'i16, 'i17, 'i18, 'i19, 'i20, 'i21, 'i22, 'i23, 'i24, 'i25, 'i26, 'i27, 'i28, 'i29, 'i30, 'i31 )-> 
+--'(((i0-sv[0])+(i1-sv[1])+(i2-sv[2])+(i3-sv[3])+(i4-sv[4])+(i5-sv[5])+(i6-sv[6])+(i7-sv[7])+(i8-sv[8])+(i9-sv[9])+(i10-sv[10])+(i11-sv[11])+(i12-sv[12])+(i13-sv[13])+(i14-sv[14])+(i15-sv[15])+(i16-sv[16])+(i17-sv[17])+(i18-sv[18])+(i19-sv[19])+(i20-sv[20])+(i21-sv[21])+(i22-sv[22])+(i23-sv[23])+(i24-sv[24])+(i25-sv[25])+(i26-sv[26])+(i27-sv[27])+(i28-sv[28])+(i29-sv[29])+(i30-sv[30])+(i31-sv[31])):unsigned<15>)
+--| ('>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>)-> '>;
+
+
+actor e1block(sv:signed<9> array[32])
+ in  (  i0:signed<9> dc,  i1:signed<9> dc,  i2:signed<9> dc,  i3:signed<9> dc, 
+        i4:signed<9> dc,  i5:signed<9> dc,  i6:signed<9> dc,  i7:signed<9> dc,
+        i8:signed<9> dc,  i9:signed<9> dc, i10:signed<9> dc, i11:signed<9> dc,
+       i12:signed<9> dc, i13:signed<9> dc, i14:signed<9> dc, i15:signed<9> dc,
+       i16:signed<9> dc, i17:signed<9> dc, i18:signed<9> dc, i19:signed<9> dc,
+       i20:signed<9> dc, i21:signed<9> dc, i22:signed<9> dc, i23:signed<9> dc,
+       i24:signed<9> dc, i25:signed<9> dc, i26:signed<9> dc, i27:signed<9> dc,
+       i28:signed<9> dc, i29:signed<9> dc, i30:signed<9> dc, i31:signed<9> dc)
+
+ out (  o0:signed<9> dc,  o1:signed<9> dc,  o2:signed<9> dc,  o3:signed<9> dc, 
+        o4:signed<9> dc,  o5:signed<9> dc,  o6:signed<9> dc,  o7:signed<9> dc,
+        o8:signed<9> dc,  o9:signed<9> dc, o10:signed<9> dc, o11:signed<9> dc,
+       o12:signed<9> dc, o13:signed<9> dc, o14:signed<9> dc, o15:signed<9> dc,
+       o16:signed<9> dc, o17:signed<9> dc, o18:signed<9> dc, o19:signed<9> dc,
+       o20:signed<9> dc, o21:signed<9> dc, o22:signed<9> dc, o23:signed<9> dc,
+       o24:signed<9> dc, o25:signed<9> dc, o26:signed<9> dc, o27:signed<9> dc,
+       o28:signed<9> dc, o29:signed<9> dc, o30:signed<9> dc, o31:signed<9> dc)
+rules (i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22, i23, i24, i25, i26, i27, i28, i29, i30, i31) ->  (o0, o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o14, o15, o16, o17, o18, o19, o20, o21, o22, o23, o24, o25, o26, o27, o28, o29, o30, o31)
+
+| ('<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<) ->  ('<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<)
+| ('i0, 'i1, 'i2, 'i3, 'i4, 'i5, 'i6, 'i7, 'i8, 'i9 , 'i10, 'i11, 'i12, 'i13, 'i14, 'i15, 'i16, 'i17, 'i18, 'i19, 'i20, 'i21, 'i22, 'i23, 'i24, 'i25, 'i26, 'i27, 'i28, 'i29, 'i30, 'i31 )-> ('(i0-sv[0]),'(i1-sv[1]),'(i2-sv[2]),'(i3-sv[3]),'(i4-sv[4]),'(i5-sv[5]),'(i6-sv[6]),'(i7-sv[7]),'(i8-sv[8]),'(i9-sv[9]),'(i10-sv[10]),'(i11-sv[11]),'(i12-sv[12]),'(i13-sv[13]),'(i14-sv[14]),'(i15-sv[15]),'(i16-sv[16]),'(i17-sv[17]),'(i18-sv[18]),'(i19-sv[19]),'(i20-sv[20]),'(i21-sv[21]),'(i22-sv[22]),'(i23-sv[23]),'(i24-sv[24]),'(i25-sv[25]),'(i26-sv[26]),'(i27-sv[27]),'(i28-sv[28]),'(i29-sv[29]),'(i30-sv[30]),'(i31-sv[31]))
+| ('>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>)->  ('>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>);
+
+
+actor sum32()
+ in  (  i0:unsigned<9> dc,  i1:unsigned<9> dc,  i2:unsigned<9> dc,  i3:unsigned<9> dc, 
+        i4:unsigned<9> dc,  i5:unsigned<9> dc,  i6:unsigned<9> dc,  i7:unsigned<9> dc,
+        i8:unsigned<9> dc,  i9:unsigned<9> dc, i10:unsigned<9> dc, i11:unsigned<9> dc,
+       i12:unsigned<9> dc, i13:unsigned<9> dc, i14:unsigned<9> dc, i15:unsigned<9> dc,
+       i16:unsigned<9> dc, i17:unsigned<9> dc, i18:unsigned<9> dc, i19:unsigned<9> dc,
+       i20:unsigned<9> dc, i21:unsigned<9> dc, i22:unsigned<9> dc, i23:unsigned<9> dc,
+       i24:unsigned<9> dc, i25:unsigned<9> dc, i26:unsigned<9> dc, i27:unsigned<9> dc,
+       i28:unsigned<9> dc, i29:unsigned<9> dc, i30:unsigned<9> dc, i31:unsigned<9> dc)
+
+ out (s:unsigned<15> dc) 
+rules ( i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18, i19, i20, i21, i22, i23, i24, i25, i26, i27, i28, i29, i30, i31) -> (s)
+
+| ('<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<,'<) ->  '<
+| ('i0, 'i1, 'i2, 'i3, 'i4, 'i5, 'i6, 'i7, 'i8, 'i9 , 'i10, 'i11, 'i12, 'i13, 'i14, 'i15, 'i16, 'i17, 'i18, 'i19, 'i20, 'i21, 'i22, 'i23, 'i24, 'i25, 'i26, 'i27, 'i28, 'i29, 'i30, 'i31 )-> '((i0:unsigned<15>)+(i1:unsigned<15>)+(i2:unsigned<15>)+(i3:unsigned<15>)+(i4:unsigned<15>)+(i5:unsigned<15>)+(i6:unsigned<15>)+(i7:unsigned<15>)+(i8:unsigned<15>)+(i9:unsigned<15>)+(i10:unsigned<15>)+(i11:unsigned<15>)+(i12:unsigned<15>)+(i13:unsigned<15>)+(i14:unsigned<15>)+(i15:unsigned<15>)+(i16:unsigned<15>)+(i17:unsigned<15>)+(i18:unsigned<15>)+(i19:unsigned<15>)+(i20:unsigned<15>)+(i21:unsigned<15>)+(i22:unsigned<15>)+(i23:unsigned<15>)+(i24:unsigned<15>)+(i25:unsigned<15>)+(i26:unsigned<15>)+(i27:unsigned<15>)+(i28:unsigned<15>)+(i29:unsigned<15>)+(i30:unsigned<15>)+(i31:unsigned<15>))
+| ('>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>,'>)->  '>;
+
+
+
+actor resizing()
+ in(i:unsigned<15> dc)
+ out(it: unsigned<2> dc, f:unsigned<8> dc)
+rules i -> (it,f)
+| '< -> ('<,'<)
+| '> -> ('>,'>)
+| 'p -> ('((p>>13):unsigned<2>),'((p>>5):unsigned<8>))
+;
+
+actor cordic (b1:unsigned<8>)
+ in (f: unsigned<8> dc)
+ out (v :unsigned<8> dc)
+
+var s : {S0,S1,S2,S3,S4,S5} = S0
+var b : unsigned<8>
+var e : unsigned<8>
+var i : unsigned<6>
+var log: unsigned<8> array[8]=[185,92,46,23,12,6,3,1]
+
+rules
+|(s:S0, f:'<)->(s:S1, v:'<) 
+|(s:S1, f:'>)->(s:S0, v:'>)
+|(s:S1, f:'<)->(s:S2, v:'<)
+|(s:S2, f:'f) -> (s:S3,i:0, e:f,b:b1)
+|(s:S2, f:'>) -> (s:S1,v:'>)
+|(s:S3) when e = 0||i=8  -> (s:S2, v:'b)
+|(s:S3) when e >= log[i]  -> (s:S3,b:b-(b>>i),e:e-log[i],i:i+1)
+|(s:S3) when e < log[i]  -> (s:S3, b:b, e:e,i:i+1)
+;
+
+
+
+actor shifting(sign:signed<1>)
+ in(v:unsigned<8> dc, it:unsigned<2> dc)
+ out(x:signed<11> dc)
+rules (v, it) -> x
+|('<,'<)-> '<
+|('>,'>)-> '>
+|('p,'it)->  '( ((p<<it):signed<11>) lor ((sign<<10):signed<11>))
+;
+
+
+net sum88 ii = let rec (oo,z1,z2,z3,z4,z5,z6,z7) = sum2u88 [0] (ii,z1,z2,z3,z4,z5,z6,z7) in oo;
+net ppsum i = let rec (a,b,c,e,n,l) = psumb(i,l) in (a,b,c,e,n);
+
+
+--============================
+--===== Network description ===
+--============================
+net t0 = conv2s33 [[0S,0S,0S, 1S,0S,-1, 0S,0S,0S]] [0] [0S] i; 
+net t1 = sqrt(conv2s33 [[0S,-1,0S,1S,0S,-1, 0S,1S,0S]] [0] [0S] i);
+net t2 = conv2s33 [[0S,-1,0S, 0S,0S,0S, 0S,1S,0S]] [0] [0S] i; 
+net t3 = sqrt(conv2s33 [[0S,-1,0S,-1,0S,1S, 0S,1S,0S]] [0] [0S] i);
+
+net (v11,v12,v13,v14,n1) = ppsum(sum88(abs(t0)));
+net (v21,v22,v23,v24,n2) = ppsum(sum88(abs(t1)));
+net (v31,v32,v33,v34,n3) = ppsum(sum88(abs(t2)));
+net (v41,v42,v43,v44,n4) = ppsum(sum88(abs(t3)));
+net (v51,v52,v53,v54,n5) = ppsum(sum88(abs(opp t0)));
+net (v61,v62,v63,v64,n6) = ppsum(sum88(abs(opp t1)));
+net (v71,v72,v73,v74,n7) = ppsum(sum88(abs(opp t2)));
+net (v81,v82,v83,v84,n8) = ppsum(sum88(abs(opp t3)));
+net nn = fsum(n1,n2,n3,n4,n5,n6,n7,n8);
+net (o11, o12, o13, o14, o21, o22, o23, o24, o31, o32, o33, o34, o41, o42, o43, o44, o51, o52, o53, o54, o61, o62, o63, o64, o71, o72, o73, o74, o81, o82, o83, o84) = norm32(v11, v12, v13, v14, v21, v22, v23, v24, v31, v32, v33, v34, v41, v42, v43, v44, v51, v52, v53, v54, v61, v62, v63, v64, v71, v72, v73, v74, v81, v82, v83, v84, nn);
+
+
+const beta=12:unsigned<8>;
+const classs=-1:signed<1>;
+const kernel=[1S,0S,4S,3S,-34,18S,-23,0S,14S,34S,187S,-234,94S,23S,-13,-34,17S,23S,-4,13S,28S,114S,-34,21S,2S,-34,-51,218S,40S,30S,32S,54S]:signed<9> array[32];
+
+net svmap k c b x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 x32 = 	
+        let (y1,y2,y3,y4,y5,y6,y7,y8,y9,y10,y11,y12,y13,y14,y15,y16,y17,y18,y19,y20,y21,y22,y23,y24,y25,y26,y27,y28,y29,y30,y31,y32)= e1block[k](x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20,x21,x22,x23,x24,x25,x26,x27,x28,x29,x30,x31,x32) in
+        let (it ,f) =  resizing ( sum32 (abs(y1),abs(y2),abs(y3),abs(y4),abs(y5),abs(y6),abs(y7),abs(y8),abs(y9),abs(y10),abs(y11),abs(y12),abs(y13),abs(y14),abs(y15),abs(y16),abs(y17),abs(y18),abs(y19),abs(y20),abs(y21),abs(y22),abs(y23),abs(y24),abs(y25),abs(y26),abs(y27),abs(y28),abs(y29),abs(y30),abs(y31),abs(y32))) in        
+	         shifting[c] (cordic [b] f, it);
+
+net val = svmap [kernel] [classs] [beta] o11 o12 o13  o14  o21  o22  o23  o24  o31  o32  o33  o34  o41  o42  o43  o44  o51  o52  o53  o54  o61  o62  o63  o64  o71  o72  o73  o74  o81  o82  o83  o84 ;
+
+
+stream i: signed<16> dc from "sample.txt";
+stream val:signed<11> dc to "val.txt";
+
+
+
